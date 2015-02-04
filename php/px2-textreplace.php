@@ -132,9 +132,6 @@ class pickles_textreplace{
 			$html = '';
 			ob_start(); ?>
 <p>Pickles2 内部のコードを検索、置換します。</p>
-<style>
-	.cont_result{}
-</style>
 <script>
 	$(window).load(function(){
 		var $replaceForm = $('.cont_replace_form');
@@ -166,15 +163,14 @@ class pickles_textreplace{
 				data:{
 					q: $form.find('[name=q]').val() ,
 					q_regexp: ($form.find('[name=q_regexp]').get(0).checked?1:0) ,
-					q_caseless: ($form.find('[name=q_caseless]').get(0).checked?1:0) ,
+					q_case_strict: ($form.find('[name=q_case_strict]').get(0).checked?1:0) ,
 					target_contents: ($form.find('[name=target_contents]').get(0).checked?1:0) ,
 					target_sitemaps: ($form.find('[name=target_sitemaps]').get(0).checked?1:0) ,
 					target_homedir: ($form.find('[name=target_homedir]').get(0).checked?1:0) ,
 					contents_region: $form.find('[name=contents_region]').val(),
 					selector: $form.find('[name=selector]').val(),
 					replace_str: $form.find('[name=replace_str]').val(),
-					replace_dom: $form.find('[name=replace_dom]').val(),
-					replace_paths: $form.find('[name=replace_paths]').val()
+					replace_dom: $form.find('[name=replace_dom]').val()
 				} ,
 				success: function(data){
 					// $result.text( $result.text()+data );
@@ -188,6 +184,7 @@ class pickles_textreplace{
 									.append( $('<th>').text('size') )
 									.append( $('<th>').text('charset') )
 									.append( $('<th>').text('crlf') )
+									.append( $('<th>').text('path_division') )
 								)
 							)
 							.append( $tbody )
@@ -201,6 +198,7 @@ class pickles_textreplace{
 								.append( $('<td>').text( data.results[idx].size ) )
 								.append( $('<td>').text( data.results[idx].charset ) )
 								.append( $('<td>').text( data.results[idx].crlf ) )
+								.append( $('<td>').text( data.results[idx].path_division ) )
 							)
 						;
 						// console.log( data.results[idx] );
@@ -233,7 +231,7 @@ class pickles_textreplace{
 					<input type="text" name="q" value="" placeholder="検索文字列" style="width:100%;" />
 					<ul class="form_elements-list">
 						<li><label><input type="checkbox" name="q_regexp" value="1" /> 正規表現を有効にする</label></li>
-						<li><label><input type="checkbox" name="q_caseless" value="1" /> 大文字と小文字を区別する</label></li>
+						<li><label><input type="checkbox" name="q_case_strict" value="1" /> 大文字と小文字を区別する</label></li>
 					</ul>
 				</td>
 			</tr>
@@ -296,28 +294,6 @@ class pickles_textreplace{
 			</tbody>
 		</table>
 	</div><!-- /.unit -->
-	<div class="unit">
-		<table class="form_elements">
-			<thead>
-				<tr>
-					<th>入力項目名</th>
-					<th>入力フィールド</th>
-				</tr>
-			</thead>
-			<tbody>
-				<tr>
-					<th>パス変換</th>
-					<td>
-						<ul class="form_elements-notes">
-							<li>ページのパスを変更する際に、リンク元のパスを書き換えます。</li>
-							<li>カンマ区切りで、<code>/before.html,/after.html</code> の形式で指定します。1行につき、1件の変更タスクを指定できます。</li>
-						</ul>
-						<textarea name="replace_paths" style="width:100%;"></textarea>
-					</td>
-				</tr>
-			</tbody>
-		</table>
-	</div><!-- /.unit -->
 </div><!-- /.cont_replace_form -->
 <div class="unit form_buttons">
 	<ul>
@@ -361,11 +337,11 @@ class pickles_textreplace{
 		$query = array();
 		$query['q'] = $this->px->req()->get_param('q');
 		$query['q_regexp'] = !empty($this->px->req()->get_param('q_regexp'));
-		$query['q_caseless'] = !empty($this->px->req()->get_param('q_caseless'));
-		$query['contents_region'] = !empty($this->px->req()->get_param('contents_region'));
+		$query['q_case_strict'] = !empty($this->px->req()->get_param('q_case_strict'));
 		$query['target_contents'] = !empty($this->px->req()->get_param('target_contents'));
 		$query['target_sitemaps'] = !empty($this->px->req()->get_param('target_sitemaps'));
 		$query['target_homedir']  = !empty($this->px->req()->get_param('target_homedir'));
+		$query['contents_region'] = $this->px->req()->get_param('contents_region');
 		$query['selector'] = $this->px->req()->get_param('selector');
 
 		require_once( __DIR__.'/searcher/searcher.php' );

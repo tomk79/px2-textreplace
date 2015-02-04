@@ -54,7 +54,7 @@ class searcher{
 		// var_dump( $this->px->get_path_homedir() );
 
 		// 初期化
-		$this->px->fs()->save_file( $this->realpath_filelist, $this->px->fs()->mk_csv(array( array('path','type','size','charset','crlf') )) );
+		$this->px->fs()->save_file( $this->realpath_filelist, $this->px->fs()->mk_csv(array( array('path','type','size','charset','crlf','path_division') )) );
 		$this->px->fs()->save_file( $this->realpath_cond, json_encode( $this->query ) );
 
 		// ファイルリストを作成する
@@ -136,21 +136,62 @@ class searcher{
 	 * ファイル内容を検索し、マッチするか否かを返す
 	 */
 	private function scan_file( $path ){
-		$rtn = array();
+		$rtn = array(
+			'path'=>null,
+			'proc_type'=>null,
+			'size'=>null,
+			'charset'=>null,
+			'crlf'=>null,
+			'path_division'=>null,
+		);
 		$rtn['path'] = $path;
 		$rtn['proc_type'] = $this->px->get_path_proc_type( $rtn['path'] );
 		if( $rtn['proc_type'] == 'ignore' ){
 			// 除外パスの場合
-			return false;
+			// return false;
 		}
 
 		$rtn['size'] = filesize( $this->realpath_base.$path );
 
-		$bin = $this->px->fs()->read_file( $this->realpath_base.$path );
+		$realpath_file = $this->px->fs()->get_realpath($this->realpath_base.$path);
+		$realpath_home_dir = $this->px->fs()->get_realpath($this->px->get_path_homedir());
+		$realpath_sitemap_dir = $this->px->fs()->get_realpath($this->px->get_path_homedir().'sitemaps/');
+		$rtn['path_division'] = 'contents';
+		if( preg_match( '/^'.preg_quote( $realpath_home_dir, '/' ).'/s', $realpath_file ) ){
+			$rtn['path_division'] = 'homedir';
+		}
+		if( preg_match( '/^'.preg_quote( $realpath_sitemap_dir, '/' ).'/s', $realpath_file ) ){
+			$rtn['path_division'] = 'sitemaps';
+		}
+		switch( $rtn['path_division'] ){
+			case 'contents':
+				if( !$this->query['target_contents'] ){ return false; }
+				if( !preg_match( '/^'.preg_quote( $this->query['contents_region'], '/' ).'.*$/s', $rtn['path'] ) ){ return false; }
+				break;
+			case 'homedir':
+				if( !$this->query['target_homedir'] ){ return false; }
+				break;
+			case 'sitemaps':
+				if( !$this->query['target_sitemaps'] ){ return false; }
+				break;
+		}
+
+		$bin = $this->px->fs()->read_file( $realpath_file );
 		if( !strlen( $this->query['q'] ) ){
 			return false;
 		}
-		if( !preg_match( '/'.preg_quote( $this->query['q'], '/' ).'/si', $bin ) ){
+		$regexp = '/'.preg_quote( $this->query['q'], '/' ).'/s';
+		if( $this->query['q_regexp'] ){
+			$regexp = '/'.$this->query['q'].'/s';
+		}
+		if( !$this->query['q_case_strict'] ){
+			$regexp .= 'i';
+		}
+		try{
+			if( !preg_match( $regexp, $bin ) ){
+				return false;
+			}
+		}catch( Exception $e ){
 			return false;
 		}
 
@@ -167,6 +208,7 @@ class searcher{
 			array_push($crlf, 'LF');
 		}
 		$rtn['crlf'] = implode( '/', $crlf );
+
 
 		return array($rtn);
 	}
