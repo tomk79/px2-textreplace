@@ -19,7 +19,10 @@ class pickles_textreplace{
 	 */
 	private $command = array();
 
-
+	/**
+	 * 一時書き込み用ディレクトリのパス
+	 */
+	private $realpath_tmp_dir;
 
 	/**
 	 * entry
@@ -71,6 +74,15 @@ class pickles_textreplace{
 	 */
 	public function __construct( $px ){
 		$this->px = $px;
+		$this->realpath_tmp_dir = $this->px->realpath_plugin_private_cache('tmp/');
+		$this->px->fs()->mkdir( $this->realpath_tmp_dir );
+	}
+
+	/**
+	 * 一時保存ディレクトリの絶対パスを取得する
+	 */
+	public function get_realpath_tmp_dir(){
+		return $this->realpath_tmp_dir;
 	}
 
 	/**
@@ -97,12 +109,12 @@ class pickles_textreplace{
 				if( !strlen( @$this->command[1] ) ){
 					$this->homepage();
 				}else{
-					$this->error( '未定義のコマンドを受け付けました。' );
+					$this->error_message_end( '未定義のコマンドを受け付けました。' );
 				}
 				break;
 		}
 
-		$this->error();
+		$this->error_message_end();
 		exit;
 	}
 
@@ -114,7 +126,215 @@ class pickles_textreplace{
 	 * @return void
 	 */
 	private function homepage(){
-		$this->user_message('このコマンドは、Pickles2 内部のコードを検索、置換するインターフェイスを提供します。');
+		if( $this->px->req()->is_cmd() ){
+			$this->user_message_end('このコマンドは、Pickles2 内部のコードを検索、置換するインターフェイスを提供します。');
+		}else{
+			$html = '';
+			ob_start(); ?>
+<p>Pickles2 内部のコードを検索、置換します。</p>
+<style>
+	.cont_result{}
+</style>
+<script>
+	$(window).load(function(){
+		var $replaceForm = $('.cont_replace_form');
+		var $result = $('.cont_result');
+		$( 'input[name=q]' ).change(function(){
+			$('.cont_mirror_of_q').text( $(this).val() );
+		});
+		$( 'input[name=selector]' ).change(function(){
+			$('.cont_mirror_of_selector').text( $(this).val() );
+		});
+		// $replaceForm.hide();
+		$('input[name=replace]')
+			.change(function(){
+				var $this = $(this);
+				if( $this.get(0).checked ){
+					$replaceForm.stop().hide().fadeIn('fast');
+				}else{
+					$replaceForm.stop().show().fadeOut('fast');
+				}
+			})
+		;
+		$('.cont_form_search_and_replace').submit(function(){
+			var replaceFlg = $('input[name=replace]').get(0).checked;
+			var $form = $('.cont_form_search_and_replace');
+			$result.html('');
+			$('.cont_result').fadeIn('slow');
+			$.ajax({
+				url: '?PX=textreplace.'+(replaceFlg?'replace':'search'),
+				data:{
+					q: $form.find('[name=q]').val() ,
+					q_regexp: ($form.find('[name=q_regexp]').get(0).checked?1:0) ,
+					q_caseless: ($form.find('[name=q_caseless]').get(0).checked?1:0) ,
+					target_contents: ($form.find('[name=target_contents]').get(0).checked?1:0) ,
+					target_sitemaps: ($form.find('[name=target_sitemaps]').get(0).checked?1:0) ,
+					target_homedir: ($form.find('[name=target_homedir]').get(0).checked?1:0) ,
+					contents_region: $form.find('[name=contents_region]').val(),
+					selector: $form.find('[name=selector]').val(),
+					replace_str: $form.find('[name=replace_str]').val(),
+					replace_dom: $form.find('[name=replace_dom]').val(),
+					replace_paths: $form.find('[name=replace_paths]').val()
+				} ,
+				success: function(data){
+					// $result.text( $result.text()+data );
+					var $tbody = $('<tbody>');
+					$result
+						.append( $('<table class="def" style="width:100%;">')
+							.append( $('<thead>')
+								.append( $('<tr>')
+									.append( $('<th>').text('path') )
+									.append( $('<th>').text('type') )
+									.append( $('<th>').text('size') )
+									.append( $('<th>').text('charset') )
+									.append( $('<th>').text('crlf') )
+								)
+							)
+							.append( $tbody )
+						)
+					;
+					for( var idx = 0; idx < data.results.length; idx ++ ){
+						$tbody
+							.append( $('<tr>')
+								.append( $('<td>').text( data.results[idx].path ) )
+								.append( $('<td>').text( data.results[idx].type ) )
+								.append( $('<td>').text( data.results[idx].size ) )
+								.append( $('<td>').text( data.results[idx].charset ) )
+								.append( $('<td>').text( data.results[idx].crlf ) )
+							)
+						;
+						// console.log( data.results[idx] );
+					}
+				} ,
+				error: function(err){
+					console.log(err);
+					alert('ERROR!');
+				} ,
+				complete: function(){
+				}
+			})
+			return false;
+		});
+	});
+</script>
+<form action="javascript:;" method="get" class="cont_form_search_and_replace">
+<div class="unit">
+	<table class="form_elements">
+		<thead>
+			<tr>
+				<th>入力項目名</th>
+				<th>入力フィールド</th>
+			</tr>
+		</thead>
+		<tbody>
+			<tr>
+				<th>検索文字列</th>
+				<td>
+					<input type="text" name="q" value="" placeholder="検索文字列" style="width:100%;" />
+					<ul class="form_elements-list">
+						<li><label><input type="checkbox" name="q_regexp" value="1" /> 正規表現を有効にする</label></li>
+						<li><label><input type="checkbox" name="q_caseless" value="1" /> 大文字と小文字を区別する</label></li>
+					</ul>
+				</td>
+			</tr>
+			<tr>
+				<th>対象範囲</th>
+				<td>
+					<ul class="form_elements-notes">
+						<li>検索・置換処理の対象とする要素を選択してください。</li>
+					</ul>
+					<ul class="form_elements-list">
+						<li><label><input type="checkbox" name="target_contents" value="1" checked="checked" /> コンテンツ</label></li>
+						<li><label><input type="checkbox" name="target_sitemaps" value="1" checked="checked" /> サイトマップ</label></li>
+						<li><label><input type="checkbox" name="target_homedir"  value="1" checked="checked" /> ホームディレクトリ全体</label></li>
+					</ul>
+					<ul class="form_elements-notes">
+						<li>コンテンツのパスを指定してください。</li>
+						<li>省略時、すべてのコンテンツファイルが対象になります。</li>
+					</ul>
+					<input type="text" name="contents_region" value="" placeholder="/" style="width:100%;" />
+					<ul class="form_elements-notes">
+						<li>CSSセレクタの形式で、検索対象のDOM構造的な範囲を指定してください。</li>
+						<li>空白のまま実行すると、全領域が対象になります。</li>
+					</ul>
+					<input type="text" name="selector" value="" placeholder="CSSセレクタを指定" style="width:100%;" />
+				</td>
+			</tr>
+		</tbody>
+	</table>
+</div><!-- /.unit -->
+
+<p><label><input type="checkbox" name="replace" value="1" /> 置換する</label></p>
+<div class="cont_replace_form" style="display:none;">
+	<div class="unit">
+		<table class="form_elements">
+			<thead>
+				<tr>
+					<th>入力項目名</th>
+					<th>入力フィールド</th>
+				</tr>
+			</thead>
+			<tbody>
+				<tr>
+					<th>置換文字列</th>
+					<td>
+						<ul class="form_elements-notes">
+							<li><q class="cont_mirror_of_q"></q> を置き換える文字列を入力してください。</li>
+						</ul>
+						<input type="text" name="replace_str" value="" style="width:100%;" />
+					</td>
+				</tr>
+				<tr>
+					<th>置換DOM構造</th>
+					<td>
+						<ul class="form_elements-notes">
+							<li><q class="cont_mirror_of_selector"></q> を置き換えるCSSセレクタを入力してください。</li>
+						</ul>
+						<input type="text" name="replace_dom" value="" style="width:100%;" />
+					</td>
+				</tr>
+			</tbody>
+		</table>
+	</div><!-- /.unit -->
+	<div class="unit">
+		<table class="form_elements">
+			<thead>
+				<tr>
+					<th>入力項目名</th>
+					<th>入力フィールド</th>
+				</tr>
+			</thead>
+			<tbody>
+				<tr>
+					<th>パス変換</th>
+					<td>
+						<ul class="form_elements-notes">
+							<li>ページのパスを変更する際に、リンク元のパスを書き換えます。</li>
+							<li>カンマ区切りで、<code>/before.html,/after.html</code> の形式で指定します。1行につき、1件の変更タスクを指定できます。</li>
+						</ul>
+						<textarea name="replace_paths" style="width:100%;"></textarea>
+					</td>
+				</tr>
+			</tbody>
+		</table>
+	</div><!-- /.unit -->
+</div><!-- /.cont_replace_form -->
+<div class="unit form_buttons">
+	<ul>
+		<li class="form_buttons-submit"><input type="submit" name="" value="検索する" /></li>
+	</ul>
+</div><!-- /.form_buttons -->
+</form>
+
+<div class="cont_result" style="display:none;">
+	---
+</div>
+
+
+<?php
+			$html .= ob_get_clean();
+			print $this->px->pxcmd()->wrap_gui_frame($html);
+		}
 		exit;
 	}
 
@@ -124,10 +344,35 @@ class pickles_textreplace{
 	 * @return void
 	 */
 	private function fnc_search(){
-		header('Content-type: text/plain;');
-		print 'search'."\n";
+		header('Content-type: application/json;');
+
+		$searcher = $this->create_searcher();
+		$results = $searcher->get_results();
+		print json_encode( $results );
+
 		exit;
 	}
+	/**
+	 * 検索オブジェクトを生成する
+	 * 
+	 * @return object searcher
+	 */
+	private function create_searcher(){
+		$query = array();
+		$query['q'] = $this->px->req()->get_param('q');
+		$query['q_regexp'] = !empty($this->px->req()->get_param('q_regexp'));
+		$query['q_caseless'] = !empty($this->px->req()->get_param('q_caseless'));
+		$query['contents_region'] = !empty($this->px->req()->get_param('contents_region'));
+		$query['target_contents'] = !empty($this->px->req()->get_param('target_contents'));
+		$query['target_sitemaps'] = !empty($this->px->req()->get_param('target_sitemaps'));
+		$query['target_homedir']  = !empty($this->px->req()->get_param('target_homedir'));
+		$query['selector'] = $this->px->req()->get_param('selector');
+
+		require_once( __DIR__.'/searcher/searcher.php' );
+		$searcher = (new searcher( $this->px, $this ))->search( $query );
+		return $searcher;
+	}// create_searcher();
+
 
 	/**
 	 * 置換する
@@ -135,8 +380,14 @@ class pickles_textreplace{
 	 * @return void
 	 */
 	private function fnc_replace(){
-		header('Content-type: text/plain;');
-		print 'replace'."\n";
+		header('Content-type: application/json;');
+
+		$searcher = $this->create_searcher();
+		$results = $searcher->get_results();
+		print json_encode( $results );
+
+		// UTODO: ここに置換処理を書く
+
 		exit;
 	}
 
@@ -159,16 +410,16 @@ class pickles_textreplace{
 	 * @param string $msg エラーメッセージ
 	 * @return void
 	 */
-	private function error( $msg ){
-		$this->user_message( $msg );
+	private function error_message_end( $msg ){
+		$this->user_message_end( $msg );
 		exit;
 	}
 
 	/**
-	 * ユーザーへのメッセージを表示して終了する
+	 * ユーザーへのメッセージを表示して、スクリプトを終了する
 	 * @param string $msg メッセージテキスト
 	 */
-	private function user_message($msg){
+	private function user_message_end($msg){
 		if( $this->px->req()->is_cmd() ){
 			header('Content-type: text/plain;');
 			print $this->px->pxcmd()->get_cli_header();

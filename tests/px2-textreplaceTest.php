@@ -1,6 +1,6 @@
 <?php
 /**
- * test for tomk79\pickles-sitemap-excel
+ * Test for tomk79\px2-textreplace
  * 
  * $ cd (project dir)
  * $ ./vendor/phpunit/phpunit/phpunit tests/px2-textreplaceTest.php px2TextReplace
