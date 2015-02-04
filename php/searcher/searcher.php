@@ -27,7 +27,7 @@ class searcher{
 	/**
 	 * パスなど
 	 */
-	private $realpath_base, $realpath_cond, $realpath_filelist;
+	private $realpath_base, $realpath_query, $realpath_filelist;
 
 	/**
 	 * constructor
@@ -39,7 +39,7 @@ class searcher{
 		$this->main = $main;
 
 		$this->realpath_base = $this->px->fs()->get_realpath( $this->px->get_path_docroot().$this->px->get_path_controot() );
-		$this->realpath_cond = $this->main->get_realpath_tmp_dir().'cond.json';
+		$this->realpath_query = $this->main->get_realpath_tmp_dir().'query.json';
 		$this->realpath_filelist = $this->main->get_realpath_tmp_dir().'target_file_list.csv';
 	}
 
@@ -55,7 +55,7 @@ class searcher{
 
 		// 初期化
 		$this->px->fs()->save_file( $this->realpath_filelist, $this->px->fs()->mk_csv(array( array('path','type','size','charset','crlf','path_division') )) );
-		$this->px->fs()->save_file( $this->realpath_cond, json_encode( $this->query ) );
+		$this->px->fs()->save_file( $this->realpath_query, json_encode( $this->query ) );
 
 		// ファイルリストを作成する
 		$this->scan_dir();
@@ -217,11 +217,11 @@ class searcher{
 	 * 検索結果を取得する
 	 */
 	public function get_results(){
-		$cond = json_decode( $this->px->fs()->read_file( $this->realpath_cond ) );
+		$query = json_decode( $this->px->fs()->read_file( $this->realpath_query ), true );
 		$csv = $this->px->fs()->read_csv( $this->realpath_filelist );
 		$csv = (new \tomk79\csv2json( $this->realpath_filelist ))->fetch_assoc();
 
-		return array( 'cond'=>$cond, 'results'=>$csv );
+		return array( 'query'=>$query, 'results'=>$csv );
 	}
 
 }

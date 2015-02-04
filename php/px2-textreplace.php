@@ -360,9 +360,15 @@ class pickles_textreplace{
 
 		$searcher = $this->create_searcher();
 		$results = $searcher->get_results();
-		print json_encode( $results );
+		// print json_encode( $results );
 
-		// UTODO: ここに置換処理を書く
+		require_once( __DIR__.'/replacer/replacer.php' );
+		$results['query']['replace_str'] = $this->px->req()->get_param('replace_str');
+		$results['query']['replace_dom'] = $this->px->req()->get_param('replace_dom');
+
+		$replacer = (new replacer( $this->px, $this ))->replace( $results['query'] );
+		$results = $replacer->get_results();
+		print json_encode( $results );
 
 		exit;
 	}
