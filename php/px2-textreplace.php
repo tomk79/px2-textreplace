@@ -22,7 +22,12 @@ class pickles_textreplace{
 	/**
 	 * 一時書き込み用ディレクトリのパス
 	 */
-	private $realpath_tmp_dir;
+	private $realpath_tmp_dir, $realpath_logs_dir;
+
+	/**
+	 * パスなど
+	 */
+	private $realpath_query, $realpath_filelist, $realpath_replace_log;
 
 	/**
 	 * entry
@@ -74,8 +79,16 @@ class pickles_textreplace{
 	 */
 	public function __construct( $px ){
 		$this->px = $px;
+
 		$this->realpath_tmp_dir = $this->px->realpath_plugin_private_cache('tmp/');
 		$this->px->fs()->mkdir( $this->realpath_tmp_dir );
+
+		$this->realpath_logs_dir = $this->px->get_path_homedir().'_sys/ram/data/textreplace_logs/';
+		$this->px->fs()->mkdir( $this->realpath_logs_dir );
+
+		$this->realpath_query = $this->get_realpath_tmp_dir().'query.json';
+		$this->realpath_filelist = $this->get_realpath_tmp_dir().'target_file_list.csv';
+		$this->realpath_replace_log = $this->get_realpath_logs_dir().'replace_log_'.@date('Ymd').'.log';
 	}
 
 	/**
@@ -83,6 +96,34 @@ class pickles_textreplace{
 	 */
 	public function get_realpath_tmp_dir(){
 		return $this->realpath_tmp_dir;
+	}
+
+	/**
+	 * 変換ログ保存先ディレクトリの絶対パスを取得する
+	 */
+	public function get_realpath_logs_dir(){
+		return $this->realpath_logs_dir;
+	}
+
+	/**
+	 * 変換ログファイルの絶対パスを取得する
+	 */
+	public function get_realpath_log(){
+		return $this->realpath_replace_log;
+	}
+
+	/**
+	 * query.json の絶対パスを取得する
+	 */
+	public function get_realpath_query(){
+		return $this->realpath_query;
+	}
+
+	/**
+	 * ファイルリストの絶対パスを取得する
+	 */
+	public function get_realpath_filelist(){
+		return $this->realpath_filelist;
 	}
 
 	/**
@@ -132,10 +173,16 @@ class pickles_textreplace{
 			$html = '';
 			ob_start(); ?>
 <p>Pickles2 内部のコードを検索、置換します。</p>
+<style>
+	table.def .cont_error_row{}
+	table.def .cont_error_row th{background-color: #ffd0d0;}
+	table.def .cont_error_row td{background-color: #fff3f3;}
+</style>
 <script>
 	$(window).load(function(){
 		var $replaceForm = $('.cont_replace_form');
 		var $result = $('.cont_result');
+		var $submitBtn = $('.cont_form_search_and_replace .form_buttons-submit input[type=submit]');
 		$( 'input[name=q]' ).change(function(){
 			$('.cont_mirror_of_q').text( $(this).val() );
 		});
@@ -147,8 +194,10 @@ class pickles_textreplace{
 			.change(function(){
 				var $this = $(this);
 				if( $this.get(0).checked ){
+					$submitBtn.val('置換する');
 					$replaceForm.stop().hide().fadeIn('fast');
 				}else{
+					$submitBtn.val('検索する');
 					$replaceForm.stop().show().fadeOut('fast');
 				}
 			})
@@ -168,9 +217,9 @@ class pickles_textreplace{
 					target_sitemaps: ($form.find('[name=target_sitemaps]').get(0).checked?1:0) ,
 					target_homedir: ($form.find('[name=target_homedir]').get(0).checked?1:0) ,
 					contents_region: $form.find('[name=contents_region]').val(),
-					selector: $form.find('[name=selector]').val(),
-					replace_str: $form.find('[name=replace_str]').val(),
-					replace_dom: $form.find('[name=replace_dom]').val()
+					// selector: $form.find('[name=selector]').val(),
+					replace_str: $form.find('[name=replace_str]').val()
+					// replace_dom: $form.find('[name=replace_dom]').val()
 				} ,
 				success: function(data){
 					// $result.text( $result.text()+data );
@@ -185,23 +234,36 @@ class pickles_textreplace{
 									.append( $('<th>').text('charset') )
 									.append( $('<th>').text('crlf') )
 									.append( $('<th>').text('path_division') )
+									.append( $('<th>').text('r') )
+									.append( $('<th>').text('w') )
 								)
 							)
 							.append( $tbody )
 						)
 					;
+					var readable = 0;
+					var writable = 0;
 					for( var idx = 0; idx < data.results.length; idx ++ ){
-						$tbody
-							.append( $('<tr>')
-								.append( $('<td>').text( data.results[idx].path ) )
-								.append( $('<td>').text( data.results[idx].type ) )
-								.append( $('<td>').text( data.results[idx].size ) )
-								.append( $('<td>').text( data.results[idx].charset ) )
-								.append( $('<td>').text( data.results[idx].crlf ) )
-								.append( $('<td>').text( data.results[idx].path_division ) )
-							)
+						var $tr = $('<tr>');
+						$tr
+							.append( $('<td>').text( data.results[idx].path ) )
+							.append( $('<td>').text( data.results[idx].type ) )
+							.append( $('<td>').text( data.results[idx].size ).addClass('right') )
+							.append( $('<td>').text( data.results[idx].charset ) )
+							.append( $('<td>').text( data.results[idx].crlf ) )
+							.append( $('<td>').text( data.results[idx].path_division ) )
+							.append( $('<td>').text( (data.results[idx].is_readable?'○':'-') ).addClass('center') )
+							.append( $('<td>').text( (data.results[idx].is_writable?'○':'-') ).addClass('center') )
 						;
-						// console.log( data.results[idx] );
+						$tbody.append( $tr );
+						if( !data.results[idx].is_readable || !data.results[idx].is_writable ){
+							$tr.addClass('cont_error_row');
+						}
+						if( !data.results[idx].is_readable ){readable += 1;}
+						if( !data.results[idx].is_writable ){writable += 1;}
+					}
+					if( readable || writable ){
+						alert( '注意: 読み込み、または書き込みができないファイルが含まれています。' );
 					}
 				} ,
 				error: function(err){
@@ -251,11 +313,13 @@ class pickles_textreplace{
 						<li>省略時、すべてのコンテンツファイルが対象になります。</li>
 					</ul>
 					<input type="text" name="contents_region" value="" placeholder="/" style="width:100%;" />
+					<!--
 					<ul class="form_elements-notes">
 						<li>CSSセレクタの形式で、検索対象のDOM構造的な範囲を指定してください。</li>
 						<li>空白のまま実行すると、全領域が対象になります。</li>
 					</ul>
 					<input type="text" name="selector" value="" placeholder="CSSセレクタを指定" style="width:100%;" />
+					-->
 				</td>
 			</tr>
 		</tbody>
@@ -282,6 +346,7 @@ class pickles_textreplace{
 						<input type="text" name="replace_str" value="" style="width:100%;" />
 					</td>
 				</tr>
+				<!--
 				<tr>
 					<th>置換DOM構造</th>
 					<td>
@@ -291,6 +356,7 @@ class pickles_textreplace{
 						<input type="text" name="replace_dom" value="" style="width:100%;" />
 					</td>
 				</tr>
+				-->
 			</tbody>
 		</table>
 	</div><!-- /.unit -->

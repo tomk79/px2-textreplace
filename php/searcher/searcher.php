@@ -39,8 +39,8 @@ class searcher{
 		$this->main = $main;
 
 		$this->realpath_base = $this->px->fs()->get_realpath( $this->px->get_path_docroot().$this->px->get_path_controot() );
-		$this->realpath_query = $this->main->get_realpath_tmp_dir().'query.json';
-		$this->realpath_filelist = $this->main->get_realpath_tmp_dir().'target_file_list.csv';
+		$this->realpath_query = $this->main->get_realpath_query();
+		$this->realpath_filelist = $this->main->get_realpath_filelist();
 	}
 
 	/**
@@ -54,7 +54,18 @@ class searcher{
 		// var_dump( $this->px->get_path_homedir() );
 
 		// 初期化
-		$this->px->fs()->save_file( $this->realpath_filelist, $this->px->fs()->mk_csv(array( array('path','type','size','charset','crlf','path_division') )) );
+		$this->px->fs()->save_file( $this->realpath_filelist, $this->px->fs()->mk_csv(array(
+			array(
+				'path',
+				'type',
+				'size',
+				'charset',
+				'crlf',
+				'path_division',
+				'is_readable',
+				'is_writable'
+			)
+		)) );
 		$this->px->fs()->save_file( $this->realpath_query, json_encode( $this->query ) );
 
 		// ファイルリストを作成する
@@ -136,6 +147,10 @@ class searcher{
 	 * ファイル内容を検索し、マッチするか否かを返す
 	 */
 	private function scan_file( $path ){
+		if( !strlen( $this->query['q'] ) ){
+			return false;
+		}
+
 		$rtn = array(
 			'path'=>null,
 			'proc_type'=>null,
@@ -143,6 +158,8 @@ class searcher{
 			'charset'=>null,
 			'crlf'=>null,
 			'path_division'=>null,
+			'is_readable'=>null,
+			'is_writable'=>null,
 		);
 		$rtn['path'] = $path;
 		$rtn['proc_type'] = $this->px->get_path_proc_type( $rtn['path'] );
@@ -176,39 +193,39 @@ class searcher{
 				break;
 		}
 
-		$bin = $this->px->fs()->read_file( $realpath_file );
-		if( !strlen( $this->query['q'] ) ){
-			return false;
-		}
-		$regexp = '/'.preg_quote( $this->query['q'], '/' ).'/s';
-		if( $this->query['q_regexp'] ){
-			$regexp = '/'.$this->query['q'].'/s';
-		}
-		if( !$this->query['q_case_strict'] ){
-			$regexp .= 'i';
-		}
-		try{
-			if( !preg_match( $regexp, $bin ) ){
+		$rtn['is_readable'] = ( $this->px->fs()->is_readable( $realpath_file ) ? 1 : null );
+		$rtn['is_writable'] = ( $this->px->fs()->is_writable( $realpath_file ) ? 1 : null );
+
+		if( $rtn['is_readable'] ){
+			$bin = $this->px->fs()->read_file( $realpath_file );
+			$regexp = '/'.preg_quote( $this->query['q'], '/' ).'/s';
+			if( $this->query['q_regexp'] ){
+				$regexp = '/'.$this->query['q'].'/s';
+			}
+			if( !$this->query['q_case_strict'] ){
+				$regexp .= 'i';
+			}
+			try{
+				if( !preg_match( $regexp, $bin ) ){
+					return false;
+				}
+			}catch( Exception $e ){
 				return false;
 			}
-		}catch( Exception $e ){
-			return false;
+			$rtn['charset'] = mb_detect_encoding( $bin, "UTF-8,SJIS-mac,SJIS-win,SJIS,eucJP-win,EUC-JP,JIS" );
+			$crlf = array();
+			if( preg_match( '/\r\n/si', $bin ) ){
+				array_push($crlf, 'CRLF');
+			}
+			$bin = preg_replace( '/\r\n/si', '', $bin );
+			if( preg_match( '/\r/si', $bin ) ){
+				array_push($crlf, 'CR');
+			}
+			if( preg_match( '/\n/si', $bin ) ){
+				array_push($crlf, 'LF');
+			}
+			$rtn['crlf'] = implode( '/', $crlf );
 		}
-
-		$rtn['charset'] = mb_detect_encoding( $bin, "UTF-8,SJIS-mac,SJIS-win,SJIS,eucJP-win,EUC-JP,JIS" );
-		$crlf = array();
-		if( preg_match( '/\r\n/si', $bin ) ){
-			array_push($crlf, 'CRLF');
-		}
-		$bin = preg_replace( '/\r\n/si', '', $bin );
-		if( preg_match( '/\r/si', $bin ) ){
-			array_push($crlf, 'CR');
-		}
-		if( preg_match( '/\n/si', $bin ) ){
-			array_push($crlf, 'LF');
-		}
-		$rtn['crlf'] = implode( '/', $crlf );
-
 
 		return array($rtn);
 	}

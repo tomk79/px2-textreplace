@@ -27,7 +27,7 @@ class replacer{
 	/**
 	 * パスなど
 	 */
-	private $realpath_base, $realpath_query, $realpath_filelist;
+	private $realpath_base, $realpath_query, $realpath_filelist, $realpath_replace_log;
 
 	/**
 	 * constructor
@@ -39,8 +39,9 @@ class replacer{
 		$this->main = $main;
 
 		$this->realpath_base = $this->px->fs()->get_realpath( $this->px->get_path_docroot().$this->px->get_path_controot() );
-		$this->realpath_query = $this->main->get_realpath_tmp_dir().'query.json';
-		$this->realpath_filelist = $this->main->get_realpath_tmp_dir().'target_file_list.csv';
+		$this->realpath_query = $this->main->get_realpath_query();
+		$this->realpath_filelist = $this->main->get_realpath_filelist();
+		$this->realpath_replace_log = $this->main->get_realpath_log();
 	}
 
 	/**
@@ -50,6 +51,12 @@ class replacer{
 	 */
 	public function replace( $query ){
 		$this->query = $query;
+
+		$this->log( '====================================' );
+		$this->log( 'px2-textreplace start' );
+		$this->log( @date('Y-m-d H:i:s') );
+		$this->log( json_encode( $this->query, JSON_PRETTY_PRINT ) );
+		$this->log( '------------' );
 
 		// var_dump( $this->px->get_path_homedir() );
 
@@ -62,7 +69,7 @@ class replacer{
 		$path = $this->px->fs()->localize_path($path);
 
 		if( !$this->px->fs()->is_file( $path ) ){
-			// ファイルがなければfalseを返す
+			// ファイルがなければ終了
 			return $this;
 		}
 
@@ -93,6 +100,12 @@ class replacer{
 		}
 		fclose($fp);
 
+		$this->log( '------------' );
+		$this->log( @date('Y-m-d H:i:s') );
+		$this->log( 'exit;' );
+		$this->log( "\n" );
+		$this->log( "\n" );
+
 		return $this;
 	}
 
@@ -117,7 +130,7 @@ class replacer{
 			$regexp .= 'i';
 		}
 		try{
-			$bin = preg_replace( $regexp, $this->query['replace_str'], $bin );
+			$bin = preg_replace( $regexp, $this->query['replace_str'], $bin, -1, $count );
 		}catch( Exception $e ){
 			return false;
 		}
@@ -126,7 +139,17 @@ class replacer{
 			return false;
 		}
 
+		$this->log( $row['path'].' ('.$count.')' );
+
 		return true;
+	}
+
+	/**
+	 * ログを保存する
+	 */
+	private function log( $msg ){
+		$rtn = error_log( trim($msg)."\n", 3, $this->realpath_replace_log );
+		return $rtn;
 	}
 
 	/**
