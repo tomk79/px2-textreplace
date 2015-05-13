@@ -72,46 +72,6 @@ class searcher{
 		$this->scan_dir();
 
 
-		// // PHP Simple HTML DOM Parser
-		// // https://packagist.org/packages/sunra/php-simple-html-dom-parser
-		// // 鉄板だけあって、検索も変更も対応している。
-		// // ...んだけど、再構成したHTMLが元とだいぶ変わってしまう。
-		// // 改行が全部なくなる。これだと使えない...。
-		// // $html = '<!DOCTYPE html><html><head><title>test</title></head><body></body></html>';
-		// $html = $this->px->fs()->read_file( './index.html' );
-		// $dom = \Sunra\PhpSimple\HtmlDomParser::str_get_html( $html );
-		// $elems = $dom->find( 'li' );
-		// // var_dump($elems);
-		// var_dump(array_keys(get_object_vars($dom)));
-		// var_dump($dom->outertext);
-		// var_dump($dom->outerhtml);
-
-		// // Symfony の DomCrawler を直に使うテスト
-		// // スタティックなHTMLコードを受け取ってはくれるが、
-		// // 加工後のコードを再構成するような機能はない。
-		// $html = '<html><body><ul><li class="odd">spam</li><li class="even">egg</li><li class="odd">ham</li></ul></body></html>';
-		// $crawler = new \Symfony\Component\DomCrawler\Crawler($html, 'http://localhost/');
-		// $element = $crawler
-		// 	->filter('li')
-		// 	->reduce( function ($node, $i) {
-		// 		if ($node->attr('class') !== 'even') {
-		// 			return false;
-		// 		}
-		// 	} )
-		// 	->first()
-		// ;
-		// echo( $element->text() );
-
-		// // Goutte にスタティックなHTMLコードを食わせてみるテスト
-		// // HTMLコードを直接受け取ってはくれないみたい。
-		// // 普通に 501 を拾った。
-		// $html = '<html><head><title></title></head><body></body></html>';
-		// // require_once './profiler.php';
-		// $client = new \Goutte\Client;
-		// $crawler = $client->request($html, 'http://dropbox.localhost/');
-		// $crawler->filter('title')->each(function($node) {
-		// 	echo trim($node->text()) . "\n";
-		// });
 
 		return $this;
 	}
@@ -198,20 +158,79 @@ class searcher{
 
 		if( $rtn['is_readable'] ){
 			$bin = $this->px->fs()->read_file( $realpath_file );
-			$regexp = '/'.preg_quote( $this->query['q'], '/' ).'/s';
-			if( $this->query['q_regexp'] ){
-				$regexp = '/'.$this->query['q'].'/s';
-			}
-			if( !$this->query['q_case_strict'] ){
-				$regexp .= 'i';
-			}
-			try{
-				if( !preg_match( $regexp, $bin ) ){
+
+			if( strlen( trim( $this->query['q'] ) ) ){
+				$regexp = '/'.preg_quote( $this->query['q'], '/' ).'/s';
+				if( $this->query['q_regexp'] ){
+					$regexp = '/'.$this->query['q'].'/s';
+				}
+				if( !$this->query['q_case_strict'] ){
+					$regexp .= 'i';
+				}
+				try{
+					if( !preg_match( $regexp, $bin ) ){
+						return false;
+					}
+				}catch( Exception $e ){
 					return false;
 				}
-			}catch( Exception $e ){
-				return false;
 			}
+
+			if( strlen( trim( $this->query['selector'] ) ) ){
+
+				// PHP Simple HTML DOM Parser
+				// https://packagist.org/packages/sunra/php-simple-html-dom-parser
+				// 鉄板だけあって、検索も変更も対応している。
+				$dom = \Sunra\PhpSimple\HtmlDomParser::str_get_html(
+					$bin,
+					true, // $lowercase
+					true, // $forceTagsClosed
+					DEFAULT_TARGET_CHARSET, // $target_charset
+					false, // $stripRN
+					DEFAULT_BR_TEXT, // $defaultBRText
+					DEFAULT_SPAN_TEXT // $defaultSpanText
+				);
+				if($dom === false){
+					return false;
+				}
+				$elms = $dom->find( $this->query['selector'] );
+				if( !count($elms) ){
+					return false;
+				}
+				// foreach( $elms as $elm ){
+				// 	var_dump($elm->outertext);
+				// }
+
+
+				// // Symfony の DomCrawler を直に使うテスト
+				// // スタティックなHTMLコードを受け取ってはくれるが、
+				// // 加工後のコードを再構成するような機能はない。
+				// $html = '<html><body><ul><li class="odd">spam</li><li class="even">egg</li><li class="odd">ham</li></ul></body></html>';
+				// $crawler = new \Symfony\Component\DomCrawler\Crawler($html, 'http://localhost/');
+				// $element = $crawler
+				// 	->filter('li')
+				// 	->reduce( function ($node, $i) {
+				// 		if ($node->attr('class') !== 'even') {
+				// 			return false;
+				// 		}
+				// 	} )
+				// 	->first()
+				// ;
+				// echo( $element->text() );
+
+				// // Goutte にスタティックなHTMLコードを食わせてみるテスト
+				// // HTMLコードを直接受け取ってはくれないみたい。
+				// // 普通に 501 を拾った。
+				// $html = '<html><head><title></title></head><body></body></html>';
+				// // require_once './profiler.php';
+				// $client = new \Goutte\Client;
+				// $crawler = $client->request($html, 'http://dropbox.localhost/');
+				// $crawler->filter('title')->each(function($node) {
+				// 	echo trim($node->text()) . "\n";
+				// });
+			}
+
+
 			$rtn['charset'] = mb_detect_encoding( $bin, "UTF-8,SJIS-mac,SJIS-win,SJIS,eucJP-win,EUC-JP,JIS" );
 			$crlf = array();
 			if( preg_match( '/\r\n/si', $bin ) ){
@@ -225,6 +244,7 @@ class searcher{
 				array_push($crlf, 'LF');
 			}
 			$rtn['crlf'] = implode( '/', $crlf );
+
 		}
 
 		return array($rtn);

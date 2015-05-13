@@ -217,7 +217,7 @@ class pickles_textreplace{
 					target_sitemaps: ($form.find('[name=target_sitemaps]').get(0).checked?1:0) ,
 					target_homedir: ($form.find('[name=target_homedir]').get(0).checked?1:0) ,
 					contents_region: $form.find('[name=contents_region]').val(),
-					// selector: $form.find('[name=selector]').val(),
+					selector: $form.find('[name=selector]').val(),
 					replace_str: $form.find('[name=replace_str]').val()
 					// replace_dom: $form.find('[name=replace_dom]').val()
 				} ,
@@ -313,13 +313,11 @@ class pickles_textreplace{
 						<li>省略時、すべてのコンテンツファイルが対象になります。</li>
 					</ul>
 					<input type="text" name="contents_region" value="" placeholder="/" style="width:100%;" />
-					<!--
 					<ul class="form_elements-notes">
 						<li>CSSセレクタの形式で、検索対象のDOM構造的な範囲を指定してください。</li>
 						<li>空白のまま実行すると、全領域が対象になります。</li>
 					</ul>
 					<input type="text" name="selector" value="" placeholder="CSSセレクタを指定" style="width:100%;" />
-					-->
 				</td>
 			</tr>
 		</tbody>
